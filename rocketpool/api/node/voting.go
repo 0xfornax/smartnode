@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -243,6 +244,31 @@ func clearSnapshotDelegate(c *cli.Context) (*api.ClearSnapshotDelegateResponse, 
 
 }
 
+func SendDAOVoteToSnapshot(apiDomain string, message string, signedMessage string) (*api.NetworkDAOVoteResponse, error) {
+	//voteRequest := api.NetworkDAOVoteRequest{}
+	// {"address":"0x7ba728C1D84c2313F319D267fD9847F2CEA8D758","sig":"0x6005594c6754db3031bf05430622c9299d386673b9385f10585d3f3f8510e0814f292c038d949678f58542084067139543a16c189e44ac3e09166765a4dac09b1c","data":{"domain":{"name":"snapshot","version":"0.1.4"},"types":{"Vote":[{"name":"from","type":"address"},{"name":"space","type":"string"},{"name":"timestamp","type":"uint64"},{"name":"proposal","type":"bytes32"},{"name":"choice","type":"uint32[]"},{"name":"reason","type":"string"},{"name":"app","type":"string"}]},"message":{"space":"rocketpool-dao.eth","proposal":"0x7426469ae1f7c6de482ab4c2929c3e29054991601c95f24f4f4056d424f9f671","choice":[1],"app":"snapshot","reason":"","from":"0x7ba728C1D84c2313F319D267fD9847F2CEA8D758","timestamp":1667323235}}}
+
+	// json.Unmarshal([]byte(fmt.Sprintf(`{"address":"0x7ba728C1D84c2313F319D267fD9847F2CEA8D758","sig":"%s","data":{"domain":{"name": "snapshot", "version": "0.1.4", "types": {"Vote":[{"name":"from","type":"address"},{"name":"space","type":"string"},{"name":"timestamp","type":"uint64"},{"name":"proposal","type":"bytes32"},{"name":"choice","type":"uint32[]"},{"name":"reason","type":"string"},{"name":"app","type":"string"}]},"message":%s}}`, signedMessage, message)),
+	// 	&voteRequest)
+	
+	url := fmt.Sprintf("https://%s/api/msg", apiDomain)
+	messageBody := fmt.Sprintf(`{"address":"0x7ba728C1D84c2313F319D267fD9847F2CEA8D758","sig":"%s","data":{"domain":{"name": "snapshot", "version": "0.1.4", "types": {"Vote":[{"name":"from","type":"address"},{"name":"space","type":"string"},{"name":"timestamp","type":"uint64"},{"name":"proposal","type":"bytes32"},{"name":"choice","type":"uint32[]"},{"name":"reason","type":"string"},{"name":"app","type":"string"}]},"message":%s}}`, signedMessage, message)
+	json_data, err := json.Marshal(messageBody)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(json_data))
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("%v", resp)
+	response := api.NetworkDAOVoteResponse{}
+	//response.Id
+	return &response, nil
+
+}
+
 func GetSnapshotVotedProposals(apiDomain string, space string, nodeAddress common.Address, delegate common.Address) (*api.SnapshotVotedProposals, error) {
 	query := fmt.Sprintf(`query Votes{
 		votes(
@@ -298,6 +324,7 @@ func GetSnapshotProposals(apiDomain string, space string, state string) (*api.Sn
 		scores_total
 		scores_updated
 		quorum
+		type
 		link
 	  }
     }`, space, state)

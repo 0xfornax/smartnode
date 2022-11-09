@@ -155,6 +155,25 @@ func RegisterSubcommands(command *cli.Command, name string, aliases []string) {
 
 				},
 			},
+
+			{
+				Name:      "dao-vote",
+				Aliases:   []string{"v"},
+				Usage:     "Submit a proposal vote signed by the node wallet",
+				UsageText: "rocketpool api network dao-vote signed-vote",
+				Action: func(c *cli.Context) error {
+
+					// Validate args
+					if err := cliutils.ValidateArgCount(c, 1); err != nil {
+						return err
+					}
+
+					// Run
+					api.PrintResponse(submitDAOVote(c, c.Args().Get(0)))
+					return nil
+
+				},
+			},
 		},
 	})
 }

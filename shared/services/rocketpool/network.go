@@ -128,3 +128,19 @@ func (c *Client) GetActiveDAOProposals() (api.NetworkDAOProposalsResponse, error
 	}
 	return response, nil
 }
+
+// SubmitDAOVote sends a signed vote to snapshot
+func (c *Client) SubmitDAOVote(message string) (api.NetworkDAOVoteResponse, error) {
+	responseBytes, err := c.callAPI("network dao-vote %s", message)
+	if err != nil {
+		return api.NetworkDAOVoteResponse{}, fmt.Errorf("could not submit DAO vote: %w", err)
+	}
+	var response api.NetworkDAOVoteResponse
+	if err := json.Unmarshal(responseBytes, &response); err != nil {
+		return api.NetworkDAOVoteResponse{}, fmt.Errorf("could not decode DAO vote response: %w", err)
+	}
+	if response.Error != "" {
+		return api.NetworkDAOVoteResponse{}, fmt.Errorf("error after submitting DAO vote: %s", response.Error)
+	}
+	return response, nil
+}

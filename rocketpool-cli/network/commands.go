@@ -1,6 +1,8 @@
 package network
 
 import (
+	"fmt"
+
 	"github.com/urfave/cli"
 
 	cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
@@ -132,6 +134,24 @@ func RegisterCommands(app *cli.App, name string, aliases []string) {
 
 					// Run
 					return getActiveDAOProposals(c)
+
+				},
+			},
+
+			{
+				Name:      "dao-vote",
+				Aliases:   []string{"v"},
+				Usage:     "Submit a proposal vote signed by the node wallet",
+				UsageText: "rocketpool network dao-vote",
+				Action: func(c *cli.Context) error {
+
+					// Validate args
+					if err := cliutils.ValidateArgCount(c, 1); err != nil {
+						return err
+					}
+					fmt.Printf("%s", c.Args().Get(0))
+					// Run
+					return submitDAOVote(c, c.Args().Get(0))
 
 				},
 			},

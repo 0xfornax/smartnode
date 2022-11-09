@@ -76,3 +76,36 @@ type NetworkDAOProposalsResponse struct {
 	ActiveSnapshotProposals []SnapshotProposal     `json:"activeSnapshotProposals"`
 	ProposalVotes           []SnapshotProposalVote `json:"proposalVotes"`
 }
+
+type NetworkDAOVoteResponse struct {
+	Status string `json:"status"`
+	Error  string `json:"error"`
+	Id     string `json:"id"`
+	Ipfs   string `json:"ipfs"`
+}
+
+type NetworkDAOVoteRequest struct {
+	Address string `json:"address"`
+	Sig     string `json:"sig"`
+	Data    struct {
+		Domain struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"domain"`
+		Types struct {
+			Vote []struct {
+				Name string `json:"name"`
+				Type string `json:"type"`
+			} `json:"Vote"`
+		} `json:"types"`
+		Message struct {
+			Space     string `json:"space"`
+			Proposal  string `json:"proposal"`
+			Choice    []int  `json:"choice"`
+			App       string `json:"app"`
+			Reason    string `json:"reason"`
+			From      string `json:"from"`
+			Timestamp int    `json:"timestamp"`
+		} `json:"message"`
+	} `json:"data"`
+}
