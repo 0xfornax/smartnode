@@ -13,11 +13,11 @@ import (
 )
 
 // FreeGeoIP config
-const FreeGeoIPURL = "https://freegeoip.app/json/"
+const ipInfoURL = "https://ipinfo.io/json/"
 
 // FreeGeoIP response
-type freeGeoIPResponse struct {
-	Timezone string `json:"time_zone"`
+type ipInfoResponse struct {
+	Timezone string `json:"timezone"`
 }
 
 // Prompt user for a time zone string
@@ -29,12 +29,12 @@ func promptTimezone() string {
 	// Prompt for auto-detect
 	if cliutils.Confirm("Would you like to detect your timezone automatically?") {
 		// Detect using FreeGeoIP
-		if resp, err := http.Get(FreeGeoIPURL); err == nil {
+		if resp, err := http.Get(ipInfoURL); err == nil {
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 			if body, err := ioutil.ReadAll(resp.Body); err == nil {
-				message := new(freeGeoIPResponse)
+				message := new(ipInfoResponse)
 				if err := json.Unmarshal(body, message); err == nil {
 					timezone = message.Timezone
 				}
