@@ -45,7 +45,7 @@ func RegisterCommands(app *cli.App, name string, aliases []string) {
 					}
 
 					// Run
-					return getSyncProgress(c)
+					return GetSyncProgress(c)
 
 				},
 			},

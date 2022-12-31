@@ -13,7 +13,7 @@ import (
 // Settings
 var ethClientRecentBlockThreshold, _ = time.ParseDuration("5m")
 
-func getSyncProgress(c *cli.Context) error {
+func GetSyncProgress(c *cli.Context) error {
 
 	// Get RP client
 	rp, err := rocketpool.NewClientFromCtx(c)
