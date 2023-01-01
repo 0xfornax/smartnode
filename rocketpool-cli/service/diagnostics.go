@@ -1,7 +1,9 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,19 +24,33 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type RecommendedVersions struct {
+	Rp         string `json:"rp"`
+	RpBeta     string `json:"rp_beta"`
+	Geth       string `json:"geth"`
+	Besu       string `json:"besu"`
+	Nethermind string `json:"nethermind"`
+	Lighthouse string `json:"lighthouse"`
+	Nimbus     string `json:"nimbus"`
+	Teku       string `json:"Teku"`
+	Prysm      string `json:"prysm"`
+	Lodestar   string `json:"lodestar"`
+}
+
 type DiagnosticsResponse struct {
-	Status       string `json:"status"`
-	Error        string `json:"error"`
-	Architecture string `json:"arch"`
-	ECPort       uint16 `json:"ec_port"`
-	CCPort       uint16 `json:"cc_port"`
-	ExternalIP   string `json:"ip"`
-	IPV6         bool   `json:"json:ipv6"`
-	ECPortOpen   bool   `json:"ec_port_open"`
-	CCPortOpen   bool   `json:"cc_port_open"`
-	FreeDisk     uint64 `json:"free_disk"`
-	TotalRAM     uint64 `json:"total_ram"`
-	Chronyd      bool   `json:"chronyd"`
+	Status       string               `json:"status"`
+	Error        string               `json:"error"`
+	Architecture string               `json:"arch"`
+	ECPort       uint16               `json:"ec_port"`
+	CCPort       uint16               `json:"cc_port"`
+	ExternalIP   string               `json:"ip"`
+	IPV6         bool                 `json:"json:ipv6"`
+	ECPortOpen   bool                 `json:"ec_port_open"`
+	CCPortOpen   bool                 `json:"cc_port_open"`
+	FreeDisk     uint64               `json:"free_disk"`
+	TotalRAM     uint64               `json:"total_ram"`
+	Chronyd      bool                 `json:"chronyd"`
+	RecVersions  *RecommendedVersions `json:"recVersions"`
 }
 
 func runDiagnostics(c *cli.Context) error {
@@ -142,6 +158,16 @@ func runDiagnostics(c *cli.Context) error {
 		return err
 	})
 
+	wg.Go(func() error {
+		var err error
+		recommendedVersions, err := fetchRecommendedVersions()
+		if err != nil {
+			return err
+		}
+		response.RecVersions = recommendedVersions
+		return err
+	})
+
 	// Wait for data
 	if err := wg.Wait(); err != nil {
 		return err
@@ -184,6 +210,31 @@ func runDiagnostics(c *cli.Context) error {
 
 	return nil
 
+}
+
+func fetchRecommendedVersions() (*RecommendedVersions, error) {
+	//url := "https://raw.githubusercontent.com/rocket-pool/smartnode/master/recommended_versions.json"
+	url := "https://raw.githubusercontent.com/0xfornax/smartnode/run-diagnostics/recommended_versions.json"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	recVersions := RecommendedVersions{}
+
+	err = json.Unmarshal(body, &recVersions)
+	if err != nil {
+		return nil, err
+	}
+
+	return &recVersions, nil
 }
 
 type Memory struct {
