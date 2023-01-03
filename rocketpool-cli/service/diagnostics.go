@@ -92,8 +92,6 @@ func runDiagnostics(c *cli.Context) error {
 
 	node.GetSyncProgress(c)
 
-	getClientVersions(c, cfg, servVersion)
-
 	checkCpuFeatures()
 
 	// // Get node account
@@ -172,6 +170,8 @@ func runDiagnostics(c *cli.Context) error {
 	if err := wg.Wait(); err != nil {
 		return err
 	}
+
+	getClientVersions(c, cfg, servVersion, response.RecVersions)
 
 	// Print diagnostics & return
 
@@ -286,7 +286,7 @@ func toInt(raw string) int {
 	return res
 }
 
-func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion string) {
+func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion string, recVersions *RecommendedVersions) {
 
 	// Get the execution client string
 	var eth1ClientString string
@@ -351,10 +351,24 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 	default:
 		fmt.Errorf("unknown consensus client mode [%v]", eth2ClientMode)
 	}
-
+	rpVersion := ""
+	if strings.Contains(c.App.Version, "b") {
+		rpVersion = recVersions.RpBeta
+	} else {
+		rpVersion = recVersions.Rp
+	}
 	// Print version info
-	fmt.Printf("\nRocket Pool client version: %s %s\n", c.App.Version, "- The recommended version is x.x.x")
-	fmt.Printf("Rocket Pool service version: %s %s\n", servVersion, "- The recommended version is x.x.x")
+	if c.App.Version == rpVersion {
+		printGreen(fmt.Sprintf("\nRocket Pool client version: %s - The recommended version is %s\n", c.App.Version, rpVersion))
+	} else {
+		printYellow(fmt.Sprintf("\nRocket Pool client version: %s - The recommended version is %s\n", c.App.Version, rpVersion))
+	}
+	if c.App.Version == servVersion {
+		printGreen(fmt.Sprintf("Rocket Pool service version: %s\n", servVersion))
+	} else {
+		printRed(fmt.Sprintf("Rocket Pool service version: %s doesn't match the client version\n", servVersion))
+	}
+	//if eth1ClientString == rec
 	fmt.Printf("Selected Eth 1.0 client: %s %s\n", eth1ClientString, "- The recommended version is x.x.x")
 	fmt.Printf("Selected Eth 2.0 client: %s %s\n", eth2ClientString, "- The recommended version is x.x.x")
 }
