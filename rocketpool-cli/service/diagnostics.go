@@ -256,6 +256,7 @@ func readMemoryStats() Memory {
 	for _, info := range memInfo {
 		if len(info) > 0 {
 			key, value := parseLine(info)
+			// Multiplying by 1024 as the results com in kb
 			switch key {
 			case "MemTotal":
 				res.MemTotal = value * 1024
@@ -408,7 +409,10 @@ func isPortOpen(ip string, port uint16) bool {
 }
 
 func getExternalIP() (string, error) {
-	resp, err := http.Get("https://icanhazip.com")
+	client := &http.Client{
+		Timeout: time.Second * 2,
+	}
+	resp, err := client.Get("https://icanhazip.com")
 	if err != nil {
 		return "", err
 	}
