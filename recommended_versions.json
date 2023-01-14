@@ -1,5 +1,5 @@
 {
-    "rp": "1.7.1",
+    "rp": "1.7.2",
     "rp_clients": {
         "geth": "ethereum/client-go:v1.10.26",
         "besu": "hyperledger/besu:22.10.2-openjdk-latest",

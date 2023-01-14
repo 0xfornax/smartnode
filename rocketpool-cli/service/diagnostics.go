@@ -32,31 +32,33 @@ type RecommendedVersions struct {
 }
 
 type ClientVersions struct {
-	Geth       string `json:"geth"`
-	Besu       string `json:"besu"`
-	Nethermind string `json:"nethermind"`
-	Lighthouse string `json:"lighthouse"`
-	Nimbus     string `json:"nimbus"`
-	Teku       string `json:"Teku"`
-	Prysm      string `json:"prysm"`
-	Lodestar   string `json:"lodestar"`
+	Geth       string
+	Besu       string
+	Nethermind string
+	Lighthouse string
+	Nimbus     string
+	Teku       string
+	Prysm      string
+	Lodestar   string
 }
 
 type DiagnosticsResponse struct {
-	Status              string               `json:"status"`
-	Error               string               `json:"error"`
-	Architecture        string               `json:"arch"`
-	ECPort              uint16               `json:"ec_port"`
-	CCPort              uint16               `json:"cc_port"`
-	ExternalIP          string               `json:"ip"`
-	IPV6                bool                 `json:"json:ipv6"`
-	ECPortOpen          bool                 `json:"ec_port_open"`
-	CCPortOpen          bool                 `json:"cc_port_open"`
-	FreeDisk            uint64               `json:"free_disk"`
-	TotalRAM            uint64               `json:"total_ram"`
-	Chronyd             bool                 `json:"chronyd"`
-	ArchivalModeEnabled bool                 `json:"archivalModeEnabled"`
-	RecVersions         *RecommendedVersions `json:"recVersions"`
+	Status              string
+	Error               string
+	Architecture        string
+	ECPort              uint16
+	CCPort              uint16
+	ExternalIP          string
+	IPV6                bool
+	ECPortOpen          bool
+	CCPortOpen          bool
+	FreeDiskSpace       uint64
+	TotalDiskSpace      uint64
+	TotalRAM            uint64
+	Chronyd             bool
+	ArchivalModeEnabled bool
+	SnapDockerPresent   bool
+	RecVersions         *RecommendedVersions
 }
 
 func runDiagnostics(c *cli.Context) error {
@@ -71,7 +73,7 @@ func runDiagnostics(c *cli.Context) error {
 	// Check and assign the EC status
 	err = cliutils.CheckClientStatus(rp)
 	if err != nil {
-		return err
+		fmt.Printf("Error checking client status: %s", err)
 	}
 
 	cfg, _, err := rp.LoadConfig()
@@ -98,8 +100,6 @@ func runDiagnostics(c *cli.Context) error {
 
 	node.GetSyncProgress(c)
 
-	checkCpuFeatures()
-
 	// // Get node account
 	// nodeAccount, err := w.GetNodeAccount()
 	// if err != nil {
@@ -113,6 +113,12 @@ func runDiagnostics(c *cli.Context) error {
 	wg.Go(func() error {
 		var err error
 		response.Architecture = getArchitecture()
+		return err
+	})
+
+	wg.Go(func() error {
+		var err error
+		response.SnapDockerPresent, err = isSnapDockerPresent()
 		return err
 	})
 
@@ -154,11 +160,12 @@ func runDiagnostics(c *cli.Context) error {
 	// Check free disk space
 	wg.Go(func() error {
 		var err error
-		freeDisk, err := checkDiskSpace(prefix, rp)
+		totalSpace, freeSpace, err := checkDiskSpace(prefix, rp)
 		if err != nil {
 			return err
 		}
-		response.FreeDisk = freeDisk
+		response.TotalDiskSpace = totalSpace
+		response.FreeDiskSpace = freeSpace
 		return err
 	})
 
@@ -185,15 +192,19 @@ func runDiagnostics(c *cli.Context) error {
 
 	// Wait for data
 	if err := wg.Wait(); err != nil {
-		return err
+		fmt.Printf("Error running diagnostics: %s", err)
 	}
 
+	fmt.Print("\n######## Versions ######### \n")
 	getClientVersions(c, cfg, servVersion, response.RecVersions)
 
 	// Print diagnostics & return
 
-	fmt.Printf("\nArchitecture: %s\n\n", response.Architecture)
+	fmt.Print("######## Architecture ######### \n")
+	checkCpuFeatures()
+	fmt.Printf("\nRuntime: %s\n\n", response.Architecture)
 
+	fmt.Print("######## Connectivity ######### \n")
 	if response.IPV6 {
 		printYellow("Using an external IPv6 address\n")
 	} else {
@@ -211,25 +222,44 @@ func runDiagnostics(c *cli.Context) error {
 		printRed(fmt.Sprintf("CC P2P Port %d is closed!\n\n", response.CCPort))
 	}
 
-	if response.FreeDisk < 100*1024*1024*1024 {
-		printYellow(fmt.Sprintf("Low free disk space: %s\n\n", humanize.IBytes(response.FreeDisk)))
+	fmt.Print("######## Disk space ######### \n")
+	if response.FreeDiskSpace < 100*1024*1024*1024 {
+		printYellow(fmt.Sprintf("Low free disk space: %s\n\n", humanize.IBytes(response.FreeDiskSpace)))
 	} else {
-		printGreen(fmt.Sprintf("Free disk space: %s\n\n", humanize.IBytes(response.FreeDisk)))
+		printGreen(fmt.Sprintf("Free disk space: %s\n\n", humanize.IBytes(response.FreeDiskSpace)))
 	}
 
 	if response.ArchivalModeEnabled {
-		printYellow("Warning: Teku archival mode is enabled. That will require much more disk space and is only needed on special circunstances.\nIf you want to free that disk space run 'rocketpool service config' and disable the Archival Mode option. After saving run 'rocketpool service resync-eth2'")
+		printYellow("Warning: Teku archival mode is enabled. That will require much more disk space and is only needed on special circumstances.\nIf you want to free disk space run 'rocketpool service config', disable the Archival Mode option. After saving, run 'rocketpool service resync-eth2'\n\n")
 	}
 
+	fmt.Print("######## Memory ######### \n")
 	if response.TotalRAM >= 31*1024*1024*1024 {
-		printGreen(fmt.Sprintf("Total RAM: %s - good for any client combination\n", humanize.IBytes(response.TotalRAM)))
+		printGreen(fmt.Sprintf("Total RAM: %s - good for any client combination\n\n", humanize.IBytes(response.TotalRAM)))
 	} else if response.TotalRAM >= 15*1024*1024*1024 {
-		printYellow(fmt.Sprintf("Total RAM: %s - a few clients might have issues\n", humanize.IBytes(response.TotalRAM)))
+		printYellow(fmt.Sprintf("Total RAM: %s - a few clients might have issues\n\n", humanize.IBytes(response.TotalRAM)))
 	} else {
-		printRed(fmt.Sprintf("Total RAM: %s - is very low, only specific clients are recommended\n", humanize.IBytes(response.TotalRAM)))
+		printRed(fmt.Sprintf("Total RAM: %s - is very low, only specific clients are recommended\n\n", humanize.IBytes(response.TotalRAM)))
+	}
+
+	fmt.Print("######## System checks ######### \n")
+	if response.SnapDockerPresent {
+		printRed("Snap Docker is present! Check the Rocket Pool #support channel for instructions on how to remove it\n\n")
+	} else {
+		printGreen("Snap Docker not found.\n\n")
 	}
 
 	return nil
+
+}
+
+func isSnapDockerPresent() (bool, error) {
+	cmd := fmt.Sprintf("snap list | grep docker")
+	snapResult, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		return false, fmt.Errorf(err.Error())
+	}
+	return strings.Contains(string(snapResult), "docker"), nil
 
 }
 
@@ -458,16 +488,16 @@ func isArchivalModeEnabled(cfg *config.RocketPoolConfig) bool {
 	return false
 }
 
-func checkDiskSpace(prefix string, rp *rocketpool.Client) (uint64, error) {
+func checkDiskSpace(prefix string, rp *rocketpool.Client) (uint64, uint64, error) {
 	// Check for enough free space
 	executionContainerName := prefix + ExecutionContainerSuffix
 	volumePath, err := rp.GetClientVolumeSource(executionContainerName, clientDataVolumeName)
 	if err != nil {
-		return 0, fmt.Errorf("Error getting execution volume source path: %w", err)
+		return 0, 0, fmt.Errorf("Error getting execution volume source path: %w", err)
 	}
 	partitions, err := disk.Partitions(true)
 	if err != nil {
-		return 0, fmt.Errorf("Error getting partition list: %w", err)
+		return 0, 0, fmt.Errorf("Error getting partition list: %w", err)
 	}
 
 	longestPath := 0
@@ -482,8 +512,7 @@ func checkDiskSpace(prefix string, rp *rocketpool.Client) (uint64, error) {
 	diskUsage, err := disk.Usage(bestPartition.Mountpoint)
 
 	if err != nil {
-		return 0, fmt.Errorf("Error getting free disk space available: %w", err)
+		return 0, 0, fmt.Errorf("Error getting free disk space available: %w", err)
 	}
-
-	return diskUsage.Free, nil
+	return diskUsage.Total, diskUsage.Free, nil
 }
