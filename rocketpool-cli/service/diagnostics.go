@@ -134,7 +134,7 @@ func runDiagnostics(c *cli.Context) error {
 		port := cfg.ExecutionCommon.P2pPort.Value.(uint16)
 		ip, err := getExternalIP()
 		if err != nil {
-			return err
+			return fmt.Errorf("Error getting external IP %s", err)
 		}
 
 		response.IPV6 = strings.Contains(ip, ":")
@@ -150,7 +150,7 @@ func runDiagnostics(c *cli.Context) error {
 
 		ip, err := getExternalIP()
 		if err != nil {
-			return err
+			return fmt.Errorf("Error getting external IP %s", err)
 		}
 		response.CCPort = port
 		response.CCPortOpen = isPortOpen(ip, port)
@@ -162,7 +162,7 @@ func runDiagnostics(c *cli.Context) error {
 		var err error
 		totalSpace, freeSpace, err := checkDiskSpace(prefix, rp)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error on check disk space %s", err)
 		}
 		response.TotalDiskSpace = totalSpace
 		response.FreeDiskSpace = freeSpace
@@ -174,7 +174,7 @@ func runDiagnostics(c *cli.Context) error {
 		var err error
 		archivalModeEnabled := isArchivalModeEnabled(cfg)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error on isArchivalModeEnabled %s", err)
 		}
 		response.ArchivalModeEnabled = archivalModeEnabled
 		return err
@@ -184,7 +184,7 @@ func runDiagnostics(c *cli.Context) error {
 		var err error
 		recommendedVersions, err := fetchRecommendedVersions()
 		if err != nil {
-			return err
+			return fmt.Errorf("Error fetching recommended versions %s", err)
 		}
 		response.RecVersions = recommendedVersions
 		return err
@@ -192,15 +192,15 @@ func runDiagnostics(c *cli.Context) error {
 
 	// Wait for data
 	if err := wg.Wait(); err != nil {
-		fmt.Printf("Error running diagnostics: %s", err)
+		//return err
 	}
 
-	fmt.Print("\n######## Versions ######### \n")
+	fmt.Print("\n\n######## Versions ######### \n")
 	getClientVersions(c, cfg, servVersion, response.RecVersions)
 
 	// Print diagnostics & return
 
-	fmt.Print("######## Architecture ######### \n")
+	fmt.Print("\n\n######## Architecture ######### \n")
 	checkCpuFeatures()
 	fmt.Printf("\nRuntime: %s\n\n", response.Architecture)
 
@@ -230,7 +230,7 @@ func runDiagnostics(c *cli.Context) error {
 	}
 
 	if response.ArchivalModeEnabled {
-		printYellow("Warning: Teku archival mode is enabled. That will require much more disk space and is only needed on special circumstances.\nIf you want to free disk space run 'rocketpool service config', disable the Archival Mode option. After saving, run 'rocketpool service resync-eth2'\n\n")
+		printYellow("Warning: Teku's archival mode is enabled. That will require much more disk space and is only needed on special circumstances.\nIf you want to free disk space run 'rocketpool service config', disable the Archival Mode option. After saving, run 'rocketpool service resync-eth2'\n\n")
 	}
 
 	fmt.Print("######## Memory ######### \n")
@@ -254,8 +254,7 @@ func runDiagnostics(c *cli.Context) error {
 }
 
 func isSnapDockerPresent() (bool, error) {
-	cmd := fmt.Sprintf("snap list | grep docker")
-	snapResult, err := exec.Command("bash", "-c", cmd).Output()
+	snapResult, err := exec.Command("bash", "-c", "snap list | grep docker").Output()
 	if err != nil {
 		return false, fmt.Errorf(err.Error())
 	}
