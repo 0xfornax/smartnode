@@ -25,8 +25,13 @@ import (
 )
 
 type RecommendedVersions struct {
-	Rp         string `json:"rp"`
-	RpBeta     string `json:"rp_beta"`
+	Rp            string         `json:"rp"`
+	RpClients     ClientVersions `json:"rp_clients"`
+	RpBeta        string         `json:"rp_beta"`
+	RpBetaClients ClientVersions `json:"rp_beta_clients"`
+}
+
+type ClientVersions struct {
 	Geth       string `json:"geth"`
 	Besu       string `json:"besu"`
 	Nethermind string `json:"nethermind"`
@@ -288,21 +293,29 @@ func toInt(raw string) int {
 }
 
 func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion string, recVersions *RecommendedVersions) {
-
+	rpVersion := ""
+	var cv ClientVersions
+	if strings.Contains(c.App.Version, "b") {
+		rpVersion = recVersions.RpBeta
+		cv = recVersions.RpClients
+	} else {
+		rpVersion = recVersions.Rp
+		cv = recVersions.RpBetaClients
+	}
 	// Get the execution client string
 	var eth1ClientString string
 	eth1ClientMode := cfg.ExecutionClientMode.Value.(cfgtypes.Mode)
 	switch eth1ClientMode {
 	case cfgtypes.Mode_Local:
 		eth1Client := cfg.ExecutionClient.Value.(cfgtypes.ExecutionClient)
-		format := "%s (Locally managed)\n\tImage: %s"
+		format := "%s (Locally managed)\n\tImage: %s Recommended: %s"
 		switch eth1Client {
 		case cfgtypes.ExecutionClient_Geth:
-			eth1ClientString = fmt.Sprintf(format, "Geth", cfg.Geth.ContainerTag.Value.(string))
+			eth1ClientString = fmt.Sprintf(format, "Geth", cfg.Geth.ContainerTag.Value.(string), cv.Geth)
 		case cfgtypes.ExecutionClient_Nethermind:
-			eth1ClientString = fmt.Sprintf(format, "Nethermind", cfg.Nethermind.ContainerTag.Value.(string))
+			eth1ClientString = fmt.Sprintf(format, "Nethermind", cfg.Nethermind.ContainerTag.Value.(string), cv.Nethermind)
 		case cfgtypes.ExecutionClient_Besu:
-			eth1ClientString = fmt.Sprintf(format, "Besu", cfg.Besu.ContainerTag.Value.(string))
+			eth1ClientString = fmt.Sprintf(format, "Besu", cfg.Besu.ContainerTag.Value.(string), cv.Besu)
 		default:
 			fmt.Errorf("unknown local execution client [%v]", eth1Client)
 		}
@@ -316,21 +329,23 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 
 	// Get the consensus client string
 	var eth2ClientString string
+	var validatorClientString string
 	eth2ClientMode := cfg.ConsensusClientMode.Value.(cfgtypes.Mode)
 	switch eth2ClientMode {
 	case cfgtypes.Mode_Local:
 		eth2Client := cfg.ConsensusClient.Value.(cfgtypes.ConsensusClient)
-		format := "%s (Locally managed)\n\tImage: %s"
+		format := "%s (Locally managed)\n\tImage: %s - Recommended: %s"
 		switch eth2Client {
 		case cfgtypes.ConsensusClient_Lighthouse:
-			eth2ClientString = fmt.Sprintf(format, "Lighthouse", cfg.Lighthouse.ContainerTag.Value.(string))
+			eth2ClientString = fmt.Sprintf(format, "Lighthouse", cfg.Lighthouse.ContainerTag.Value.(string), cv.Lighthouse)
 		case cfgtypes.ConsensusClient_Nimbus:
-			eth2ClientString = fmt.Sprintf(format, "Nimbus", cfg.Nimbus.ContainerTag.Value.(string))
+			eth2ClientString = fmt.Sprintf(format, "Nimbus", cfg.Nimbus.ContainerTag.Value.(string), cv.Nimbus)
 		case cfgtypes.ConsensusClient_Prysm:
 			// Prysm is a special case, as the BN and VC image versions may differ
-			eth2ClientString = fmt.Sprintf(format+"\n\tVC image: %s", "Prysm", cfg.Prysm.BnContainerTag.Value.(string), cfg.Prysm.VcContainerTag.Value.(string))
+			eth2ClientString = fmt.Sprintf(format, "Prysm", cfg.Prysm.BnContainerTag.Value.(string), cv.Prysm)
+			validatorClientString = cfg.Prysm.VcContainerTag.Value.(string)
 		case cfgtypes.ConsensusClient_Teku:
-			eth2ClientString = fmt.Sprintf(format, "Teku", cfg.Teku.ContainerTag.Value.(string))
+			eth2ClientString = fmt.Sprintf(format, "Teku", cfg.Teku.ContainerTag.Value.(string), cv.Teku)
 		default:
 			fmt.Errorf("unknown local consensus client [%v]", eth2Client)
 		}
@@ -352,12 +367,7 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 	default:
 		fmt.Errorf("unknown consensus client mode [%v]", eth2ClientMode)
 	}
-	rpVersion := ""
-	if strings.Contains(c.App.Version, "b") {
-		rpVersion = recVersions.RpBeta
-	} else {
-		rpVersion = recVersions.Rp
-	}
+
 	// Print version info
 	if c.App.Version == rpVersion {
 		printGreen(fmt.Sprintf("\nRocket Pool client version: %s - The recommended version is %s\n", c.App.Version, rpVersion))
@@ -369,9 +379,7 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 	} else {
 		printRed(fmt.Sprintf("Rocket Pool service version: %s doesn't match the client version\n", servVersion))
 	}
-	//if eth1ClientString == rec
-	fmt.Printf("Selected Eth 1.0 client: %s %s\n", eth1ClientString, "- The recommended version is x.x.x")
-	fmt.Printf("Selected Eth 2.0 client: %s %s\n", eth2ClientString, "- The recommended version is x.x.x")
+	fmt.Printf("Clients:\n%s\n%s", eth1ClientString, eth2ClientString)
 }
 
 func printGreen(str string) {

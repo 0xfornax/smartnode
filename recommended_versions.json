@@ -1,12 +1,26 @@
 {
     "rp": "1.7.1",
+    "rp_clients": {
+        "geth": "ethereum/client-go:v1.10.26",
+        "besu": "hyperledger/besu:22.10.2-openjdk-latest",
+        "nethermind": "nethermind/nethermind:1.14.7",
+        "lodestar": "chainsafe/lodestar:v1.2.2",
+        "lighthouse": "sigp/lighthouse:v3.3.0-modern",
+        "nimbus": "statusim/nimbus-eth2:multiarch-v22.11.0",
+        "teku": "consensys/teku:22.11.0",
+        "prysm_cc": "prysmaticlabs/prysm-beacon-chain:HEAD-648ab9-debug",
+        "prysm_vc": "prysmaticlabs/prysm-beacon-chain:HEAD-648ab9-debug"
+    },
     "rp_beta": "1.8.0-b1",
-    "geth": "ethereum/client-go:v1.10.26",
-    "besu": "hyperledger/besu:22.10.2-openjdk-latest",
-    "nethermind": "nethermind/nethermind:1.14.7",
-    "lodestar": "chainsafe/lodestar:v1.2.2",
-    "lighthouse": "sigp/lighthouse:v3.3.0-modern",
-    "nimbus": "statusim/nimbus-eth2:multiarch-v22.11.0",
-    "teku": "consensys/teku:22.11.0",
-    "prysm": "prysmaticlabs/prysm-beacon-chain:HEAD-648ab9-debug"
+    "rp_beta_clients": {
+        "geth": "ethereum/client-go:v1.10.26",
+        "besu": "hyperledger/besu:22.10.2-openjdk-latest",
+        "nethermind": "nethermind/nethermind:1.14.7",
+        "lodestar": "chainsafe/lodestar:v1.2.2",
+        "lighthouse": "sigp/lighthouse:v3.3.0-modern",
+        "nimbus": "statusim/nimbus-eth2:multiarch-v22.11.0",
+        "teku": "consensys/teku:22.11.0",
+        "prysm_cc": "prysmaticlabs/prysm-beacon-chain:HEAD-648ab9-debug",
+        "prysm_vc": "prysmaticlabs/prysm-beacon-chain:HEAD-648ab9-debug"
+    }
 }
