@@ -43,19 +43,20 @@ type ClientVersions struct {
 }
 
 type DiagnosticsResponse struct {
-	Status       string               `json:"status"`
-	Error        string               `json:"error"`
-	Architecture string               `json:"arch"`
-	ECPort       uint16               `json:"ec_port"`
-	CCPort       uint16               `json:"cc_port"`
-	ExternalIP   string               `json:"ip"`
-	IPV6         bool                 `json:"json:ipv6"`
-	ECPortOpen   bool                 `json:"ec_port_open"`
-	CCPortOpen   bool                 `json:"cc_port_open"`
-	FreeDisk     uint64               `json:"free_disk"`
-	TotalRAM     uint64               `json:"total_ram"`
-	Chronyd      bool                 `json:"chronyd"`
-	RecVersions  *RecommendedVersions `json:"recVersions"`
+	Status              string               `json:"status"`
+	Error               string               `json:"error"`
+	Architecture        string               `json:"arch"`
+	ECPort              uint16               `json:"ec_port"`
+	CCPort              uint16               `json:"cc_port"`
+	ExternalIP          string               `json:"ip"`
+	IPV6                bool                 `json:"json:ipv6"`
+	ECPortOpen          bool                 `json:"ec_port_open"`
+	CCPortOpen          bool                 `json:"cc_port_open"`
+	FreeDisk            uint64               `json:"free_disk"`
+	TotalRAM            uint64               `json:"total_ram"`
+	Chronyd             bool                 `json:"chronyd"`
+	ArchivalModeEnabled bool                 `json:"archivalModeEnabled"`
+	RecVersions         *RecommendedVersions `json:"recVersions"`
 }
 
 func runDiagnostics(c *cli.Context) error {
@@ -161,6 +162,17 @@ func runDiagnostics(c *cli.Context) error {
 		return err
 	})
 
+	// Check if Teku's archival mode is being used
+	wg.Go(func() error {
+		var err error
+		archivalModeEnabled := isArchivalModeEnabled(cfg)
+		if err != nil {
+			return err
+		}
+		response.ArchivalModeEnabled = archivalModeEnabled
+		return err
+	})
+
 	wg.Go(func() error {
 		var err error
 		recommendedVersions, err := fetchRecommendedVersions()
@@ -203,6 +215,10 @@ func runDiagnostics(c *cli.Context) error {
 		printYellow(fmt.Sprintf("Low free disk space: %s\n\n", humanize.IBytes(response.FreeDisk)))
 	} else {
 		printGreen(fmt.Sprintf("Free disk space: %s\n\n", humanize.IBytes(response.FreeDisk)))
+	}
+
+	if response.ArchivalModeEnabled {
+		printYellow("Warning: Teku archival mode is enabled. That will require much more disk space and is only needed on special circunstances.\nIf you want to free that disk space run 'rocketpool service config' and disable the Archival Mode option. After saving run 'rocketpool service resync-eth2'")
 	}
 
 	if response.TotalRAM >= 31*1024*1024*1024 {
@@ -329,7 +345,7 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 
 	// Get the consensus client string
 	var eth2ClientString string
-	var validatorClientString string
+	//var validatorClientString string
 	eth2ClientMode := cfg.ConsensusClientMode.Value.(cfgtypes.Mode)
 	switch eth2ClientMode {
 	case cfgtypes.Mode_Local:
@@ -343,7 +359,7 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 		case cfgtypes.ConsensusClient_Prysm:
 			// Prysm is a special case, as the BN and VC image versions may differ
 			eth2ClientString = fmt.Sprintf(format, "Prysm", cfg.Prysm.BnContainerTag.Value.(string), cv.Prysm)
-			validatorClientString = cfg.Prysm.VcContainerTag.Value.(string)
+			//validatorClientString = cfg.Prysm.VcContainerTag.Value.(string)
 		case cfgtypes.ConsensusClient_Teku:
 			eth2ClientString = fmt.Sprintf(format, "Teku", cfg.Teku.ContainerTag.Value.(string), cv.Teku)
 		default:
@@ -432,6 +448,14 @@ func getExternalIP() (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(ip), "\n"), nil
+}
+
+func isArchivalModeEnabled(cfg *config.RocketPoolConfig) bool {
+	if cfg.ConsensusClientMode.Value.(cfgtypes.Mode) == cfgtypes.Mode_Local &&
+		cfg.ConsensusClient.Value.(cfgtypes.ConsensusClient) == cfgtypes.ConsensusClient_Teku {
+		return cfg.Teku.ArchiveMode.Value.(bool)
+	}
+	return false
 }
 
 func checkDiskSpace(prefix string, rp *rocketpool.Client) (uint64, error) {
