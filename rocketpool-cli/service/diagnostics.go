@@ -157,6 +157,14 @@ func runDiagnostics(c *cli.Context) error {
 		return err
 	})
 
+	// Check if chronyd is active
+	wg.Go(func() error {
+		var err error
+		response.Chronyd, err = isChronydActive()
+
+		return err
+	})
+
 	// Check free disk space
 	wg.Go(func() error {
 		var err error
@@ -259,6 +267,15 @@ func isSnapDockerPresent() (bool, error) {
 		return false, fmt.Errorf(err.Error())
 	}
 	return strings.Contains(string(snapResult), "docker"), nil
+
+}
+
+func isChronydActive() (bool, error) {
+	result, err := exec.Command("bash", "-c", "systemctl status chronyd | grep active").Output()
+	if err != nil {
+		return false, fmt.Errorf(err.Error())
+	}
+	return !strings.Contains(string(result), "inactive"), nil
 
 }
 
