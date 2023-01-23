@@ -1,9 +1,7 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -24,24 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type RecommendedVersions struct {
-	Rp            string         `json:"rp"`
-	RpClients     ClientVersions `json:"rp_clients"`
-	RpBeta        string         `json:"rp_beta"`
-	RpBetaClients ClientVersions `json:"rp_beta_clients"`
-}
-
-type ClientVersions struct {
-	Geth       string
-	Besu       string
-	Nethermind string
-	Lighthouse string
-	Nimbus     string
-	Teku       string
-	Prysm      string
-	Lodestar   string
-}
-
 type DiagnosticsResponse struct {
 	Status              string
 	Error               string
@@ -58,7 +38,6 @@ type DiagnosticsResponse struct {
 	Chronyd             bool
 	ArchivalModeEnabled bool
 	SnapDockerPresent   bool
-	RecVersions         *RecommendedVersions
 }
 
 func runDiagnostics(c *cli.Context) error {
@@ -188,23 +167,13 @@ func runDiagnostics(c *cli.Context) error {
 		return err
 	})
 
-	wg.Go(func() error {
-		var err error
-		recommendedVersions, err := fetchRecommendedVersions()
-		if err != nil {
-			return fmt.Errorf("Error fetching recommended versions %s", err)
-		}
-		response.RecVersions = recommendedVersions
-		return err
-	})
-
 	// Wait for data
 	if err := wg.Wait(); err != nil {
 		//return err
 	}
 
 	fmt.Print("\n\n######## Versions ######### \n")
-	getClientVersions(c, cfg, servVersion, response.RecVersions)
+	getClientVersions(c, cfg, servVersion)
 
 	// Print diagnostics & return
 
@@ -279,31 +248,6 @@ func isChronydActive() (bool, error) {
 
 }
 
-func fetchRecommendedVersions() (*RecommendedVersions, error) {
-	//url := "https://raw.githubusercontent.com/rocket-pool/smartnode/master/recommended_versions.json"
-	url := "https://raw.githubusercontent.com/0xfornax/smartnode/run-diagnostics/recommended_versions.json"
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	recVersions := RecommendedVersions{}
-
-	err = json.Unmarshal(body, &recVersions)
-	if err != nil {
-		return nil, err
-	}
-
-	return &recVersions, nil
-}
-
 type Memory struct {
 	MemTotal     int
 	MemFree      int
@@ -354,30 +298,22 @@ func toInt(raw string) int {
 	return res
 }
 
-func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion string, recVersions *RecommendedVersions) {
+func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion string) {
 	rpVersion := ""
-	var cv ClientVersions
-	if strings.Contains(c.App.Version, "b") {
-		rpVersion = recVersions.RpBeta
-		cv = recVersions.RpClients
-	} else {
-		rpVersion = recVersions.Rp
-		cv = recVersions.RpBetaClients
-	}
 	// Get the execution client string
 	var eth1ClientString string
 	eth1ClientMode := cfg.ExecutionClientMode.Value.(cfgtypes.Mode)
 	switch eth1ClientMode {
 	case cfgtypes.Mode_Local:
 		eth1Client := cfg.ExecutionClient.Value.(cfgtypes.ExecutionClient)
-		format := "%s (Locally managed)\n\tImage: %s Recommended: %s"
+		format := "%s (Locally managed)\n\tImage: %s"
 		switch eth1Client {
 		case cfgtypes.ExecutionClient_Geth:
-			eth1ClientString = fmt.Sprintf(format, "Geth", cfg.Geth.ContainerTag.Value.(string), cv.Geth)
+			eth1ClientString = fmt.Sprintf(format, "Geth", cfg.Geth.ContainerTag.Value.(string))
 		case cfgtypes.ExecutionClient_Nethermind:
-			eth1ClientString = fmt.Sprintf(format, "Nethermind", cfg.Nethermind.ContainerTag.Value.(string), cv.Nethermind)
+			eth1ClientString = fmt.Sprintf(format, "Nethermind", cfg.Nethermind.ContainerTag.Value.(string))
 		case cfgtypes.ExecutionClient_Besu:
-			eth1ClientString = fmt.Sprintf(format, "Besu", cfg.Besu.ContainerTag.Value.(string), cv.Besu)
+			eth1ClientString = fmt.Sprintf(format, "Besu", cfg.Besu.ContainerTag.Value.(string))
 		default:
 			fmt.Errorf("unknown local execution client [%v]", eth1Client)
 		}
@@ -396,18 +332,17 @@ func getClientVersions(c *cli.Context, cfg *config.RocketPoolConfig, servVersion
 	switch eth2ClientMode {
 	case cfgtypes.Mode_Local:
 		eth2Client := cfg.ConsensusClient.Value.(cfgtypes.ConsensusClient)
-		format := "%s (Locally managed)\n\tImage: %s - Recommended: %s"
+		format := "%s (Locally managed)\n\tImage: %s"
 		switch eth2Client {
 		case cfgtypes.ConsensusClient_Lighthouse:
-			eth2ClientString = fmt.Sprintf(format, "Lighthouse", cfg.Lighthouse.ContainerTag.Value.(string), cv.Lighthouse)
+			eth2ClientString = fmt.Sprintf(format, "Lighthouse", cfg.Lighthouse.ContainerTag.Value.(string))
 		case cfgtypes.ConsensusClient_Nimbus:
-			eth2ClientString = fmt.Sprintf(format, "Nimbus", cfg.Nimbus.ContainerTag.Value.(string), cv.Nimbus)
+			eth2ClientString = fmt.Sprintf(format, "Nimbus", cfg.Nimbus.ContainerTag.Value.(string))
 		case cfgtypes.ConsensusClient_Prysm:
 			// Prysm is a special case, as the BN and VC image versions may differ
-			eth2ClientString = fmt.Sprintf(format, "Prysm", cfg.Prysm.BnContainerTag.Value.(string), cv.Prysm)
-			//validatorClientString = cfg.Prysm.VcContainerTag.Value.(string)
+			eth2ClientString = fmt.Sprintf(format, "Prysm", cfg.Prysm.BnContainerTag.Value.(string))
 		case cfgtypes.ConsensusClient_Teku:
-			eth2ClientString = fmt.Sprintf(format, "Teku", cfg.Teku.ContainerTag.Value.(string), cv.Teku)
+			eth2ClientString = fmt.Sprintf(format, "Teku", cfg.Teku.ContainerTag.Value.(string))
 		default:
 			fmt.Errorf("unknown local consensus client [%v]", eth2Client)
 		}
