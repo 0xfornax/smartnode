@@ -26,6 +26,7 @@ import (
 	externalip "github.com/glendc/go-external-ip"
 	"github.com/mitchellh/go-homedir"
 	"github.com/rocket-pool/smartnode/addons/graffiti_wall_writer"
+	"github.com/rocket-pool/smartnode/addons/rescue_node"
 	"github.com/rocket-pool/smartnode/shared/services/config"
 	cfgtypes "github.com/rocket-pool/smartnode/shared/types/config"
 	"github.com/rocket-pool/smartnode/shared/utils/rp"
@@ -1631,6 +1632,31 @@ func (c *Client) composeAddons(cfg *config.RocketPoolConfig, rocketpoolDir strin
 		}
 		deployedContainers = append(deployedContainers, composePath)
 		deployedContainers = append(deployedContainers, filepath.Join(overrideFolder, graffiti_wall_writer.GraffitiWallWriterContainerName+composeFileSuffix))
+	}
+
+	// RN
+	if cfg.RescueNodeAddOn.GetEnabledParameter().Value == true {
+		runtimeFolder := filepath.Join(rocketpoolDir, runtimeDir, "addons", "rn")
+		templatesFolder := filepath.Join(rocketpoolDir, templatesDir, "addons", "rn")
+		overrideFolder := filepath.Join(rocketpoolDir, overrideDir, "addons", "rn")
+
+		// Make the addon folder
+		err := os.MkdirAll(runtimeFolder, 0775)
+		if err != nil {
+			return []string{}, fmt.Errorf("error creating addon runtime folder (%s): %w", runtimeFolder, err)
+		}
+
+		contents, err := envsubst.ReadFile(filepath.Join(templatesFolder, rescue_node.RescueNodeAddOnContainerName+templateSuffix))
+		if err != nil {
+			return []string{}, fmt.Errorf("error reading and substituting RN addon container template: %w", err)
+		}
+		composePath := filepath.Join(runtimeFolder, string(rescue_node.RescueNodeAddOnContainerName)+composeFileSuffix)
+		err = os.WriteFile(composePath, contents, 0664)
+		if err != nil {
+			return []string{}, fmt.Errorf("could not write RN addon container file to %s: %w", composePath, err)
+		}
+		deployedContainers = append(deployedContainers, composePath)
+		deployedContainers = append(deployedContainers, filepath.Join(overrideFolder, rescue_node.RescueNodeAddOnContainerName+composeFileSuffix))
 	}
 
 	return deployedContainers, nil
