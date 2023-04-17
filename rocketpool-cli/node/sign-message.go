@@ -21,34 +21,32 @@ type PersonalSignature struct {
 	Version   string         `json:"version"` // beaconcha.in expects a string
 }
 
-func signMessage(c *cli.Context) error {
-
+func SignArbitraryMessage(c *cli.Context, message string) ([]byte, error) {
 	// Get RP client
 	rp, err := rocketpool.NewClientFromCtx(c)
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 	defer rp.Close()
 
 	// Get & check wallet status
 	status, err := rp.WalletStatus()
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 
 	if !status.WalletInitialized {
 		fmt.Println("The node wallet is not initialized.")
-		return nil
+		return []byte{}, nil
 	}
 
-	message := c.String("message")
-	for message == "" {
-		message = cliutils.Prompt("Please enter the message you want to sign: (EIP-191 personal_sign)", "^.+$", "Please enter the message you want to sign: (EIP-191 personal_sign)")
+	if message == "" {
+		return []byte{}, fmt.Errorf("signed message can't be empty")
 	}
 
 	response, err := rp.SignMessage(message)
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 
 	// Print the signature
@@ -59,6 +57,18 @@ func signMessage(c *cli.Context) error {
 		Version:   fmt.Sprint(signatureVersion),
 	}
 	bytes, err := json.MarshalIndent(formattedSignature, "", "    ")
+	if err != nil {
+		return []byte{}, err
+	}
+	return bytes, nil
+}
+
+func signMessage(c *cli.Context) error {
+	message := c.String("message")
+	for message == "" {
+		message = cliutils.Prompt("Please enter the message you want to sign: (EIP-191 personal_sign)", "^.+$", "Please enter the message you want to sign: (EIP-191 personal_sign)")
+	}
+	bytes, err := SignArbitraryMessage(c, c.String("message"))
 	if err != nil {
 		return err
 	}

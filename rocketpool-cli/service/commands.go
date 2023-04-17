@@ -529,6 +529,36 @@ func RegisterCommands(app *cli.App, name string, aliases []string) {
 
 				},
 			},
+			{
+				Name:      "use-rescue-node",
+				Aliases:   []string{"urn"},
+				Usage:     ".",
+				UsageText: "rocketpool service use-rescue-node <true/false>",
+				Flags: []cli.Flag{
+					cli.StringFlag{
+						Name:  "url, u",
+						Usage: "The external rescue node service URL",
+						Value: cfgTemplate.ConsensusCommon.RescueNodeBaseURL.Value.(string),
+					},
+				},
+				Action: func(c *cli.Context) error {
+
+					// Validate args
+					if err := cliutils.ValidateArgCount(c, 1); err != nil {
+						return err
+					}
+
+					choiceString := c.Args().Get(0)
+					choice, err := cliutils.ValidateBool("use-rescue-node", choiceString)
+					if err != nil {
+						return err
+					}
+
+					// Run command
+					return useRescueNode(c, choice)
+
+				},
+			},
 		},
 	})
 }

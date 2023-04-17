@@ -1,7 +1,11 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,10 +20,12 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/dustin/go-humanize"
+	"github.com/rocket-pool/smartnode/rocketpool-cli/node"
 	cliconfig "github.com/rocket-pool/smartnode/rocketpool-cli/service/config"
 	"github.com/rocket-pool/smartnode/shared"
 	"github.com/rocket-pool/smartnode/shared/services/config"
 	"github.com/rocket-pool/smartnode/shared/services/rocketpool"
+	"github.com/rocket-pool/smartnode/shared/types/api"
 	cfgtypes "github.com/rocket-pool/smartnode/shared/types/config"
 	cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
 	"github.com/rocket-pool/smartnode/shared/utils/sys"
@@ -1226,6 +1232,138 @@ func terminateService(c *cli.Context) error {
 
 	// Stop service
 	return rp.TerminateService(getComposeFiles(c), c.GlobalString("config-path"))
+
+}
+
+func getRescueNodeSignedMessage(rp *rocketpool.Client, message string) (*api.NodeSignResponse, error) {
+	response, err := rp.SignMessage(message)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+// Standard Rescue Node service response
+type rescueNodeResponse struct {
+	Data struct {
+		Username  string `json:"username"`
+		Password  string `json:"password"`
+		Timestamp uint64 `json:"timestamp"`
+	} `json:"data"`
+}
+
+type rescueNodeError struct {
+	Error string `json:"error"`
+}
+
+func getErrorFromResponse(response *http.Response) error {
+	// Get response
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return err
+	}
+
+	// Deserialize response
+	var rnError rescueNodeError
+	if err := json.Unmarshal(body, &rnError); err != nil {
+		return fmt.Errorf("Could not decode rescue node response: %w", err)
+	}
+
+	return fmt.Errorf(rnError.Error)
+
+}
+
+func fetchRescueNodeResponse(c *cli.Context) (*rescueNodeResponse, error) {
+	message := fmt.Sprintf("Rescue Node %d", time.Now().Unix())
+	signedData, err := node.SignArbitraryMessage(c, message)
+	if err != nil {
+		return &rescueNodeResponse{}, err
+	}
+	url := c.String("url")
+
+	if url == "" {
+		return &rescueNodeResponse{}, fmt.Errorf("rescue node URL not provided. Run `rocketpool service config` and insert an URL on the ETH2 section.")
+	}
+
+	response, err := http.Post(url, "application/json", bytes.NewBuffer(signedData))
+	if err != nil {
+		return &rescueNodeResponse{}, err
+	}
+
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	// Check the response code
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusUnauthorized {
+			return &rescueNodeResponse{}, fmt.Errorf("failed with code %d: %s", response.StatusCode, getErrorFromResponse(response))
+		}
+		return &rescueNodeResponse{}, fmt.Errorf("request failed with code %d", response.StatusCode)
+	}
+
+	// Get response
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return &rescueNodeResponse{}, err
+	}
+
+	// Deserialize response
+	var rnResponse rescueNodeResponse
+	if err := json.Unmarshal(body, &rnResponse); err != nil {
+		return &rescueNodeResponse{}, fmt.Errorf("Could not decode rescue node response: %w", err)
+	}
+
+	return &rnResponse, nil
+}
+
+func useRescueNode(c *cli.Context, useRescueNode bool) error {
+	// Get RP client
+	rp, err := rocketpool.NewClientFromCtx(c)
+	if err != nil {
+		return err
+	}
+	defer rp.Close()
+
+	// Get & check wallet status
+	status, err := rp.WalletStatus()
+	if err != nil {
+		return err
+	}
+
+	if !status.WalletInitialized {
+		fmt.Println("The node wallet is not initialized.")
+		return nil
+	}
+
+	var rnResponse *rescueNodeResponse
+	if useRescueNode {
+		rnResponse, err = fetchRescueNodeResponse(c)
+		if err != nil {
+			return err
+		}
+	}
+	updateConfigWithAPIEndpoint(c, rnResponse, useRescueNode)
+
+	return nil
+}
+
+func updateConfigWithAPIEndpoint(c *cli.Context, rnResponse *rescueNodeResponse, useRescueNode bool) error {
+
+	if useRescueNode {
+		// Get RP client
+		rp, err := rocketpool.NewClientFromCtx(c)
+		if err != nil {
+			return err
+		}
+		defer rp.Close()
+
+		config, _, err := rp.LoadConfig()
+		if err != nil {
+			return err
+		}
+		config.ExternalConsensusClient.
+	}
 
 }
 

@@ -44,6 +44,9 @@ type ConsensusCommonConfig struct {
 
 	// Toggle for enabling doppelganger detection
 	DoppelgangerDetection config.Parameter `yaml:"doppelgangerDetection,omitempty"`
+
+	// The external rescue node service API base URL to use
+	RescueNodeBaseURL config.Parameter `yaml:"rescueNodeBaseURL,omitempty"`
 }
 
 // Create a new ConsensusCommonParams struct
@@ -123,6 +126,18 @@ func NewConsensusCommonConfig(cfg *RocketPoolConfig) *ConsensusCommonConfig {
 			AffectsContainers:    []config.ContainerID{config.ContainerID_Validator},
 			EnvironmentVariables: []string{"DOPPELGANGER_DETECTION"},
 			CanBeBlank:           false,
+			OverwriteOnUpgrade:   false,
+		},
+
+		RescueNodeBaseURL: config.Parameter{
+			ID:                   CheckpointSyncUrlID,
+			Name:                 "Rescue Node Service URL",
+			Description:          "If you would like your validator client to temporarily point to an external service provider a pair of Execution and Consensus client. Only use this option if you TRUST the service provider as they would be able to steal MEV/tips earned while proposing blocks through the service.",
+			Type:                 config.ParameterType_String,
+			Default:              map[config.Network]interface{}{config.Network_All: defaultCheckpointSyncProvider},
+			AffectsContainers:    []config.ContainerID{config.ContainerID_Validator},
+			EnvironmentVariables: []string{"RESCUE_NODE_BASE_URL"},
+			CanBeBlank:           true,
 			OverwriteOnUpgrade:   false,
 		},
 	}
